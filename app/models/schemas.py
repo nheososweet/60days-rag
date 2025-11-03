@@ -25,13 +25,26 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="Temperature for response generation")
     max_tokens: Optional[int] = Field(None, gt=0, description="Maximum tokens in response")
     stream: bool = Field(False, description="Enable streaming response")
+    system_prompt: Optional[str] = Field(
+        None,
+        description="System instruction cho model (vd: 'You are a Python expert')"
+    )
+    enable_thinking: Optional[bool] = Field(
+        False,
+        description="Enable thinking mode - model shows reasoning process in <think> tags (Qwen only)"
+    )
+    context: Optional[str] = Field(
+        None,
+        description="Additional context to inject into prompt (used for RAG)"
+    )
     
     class Config:
         json_schema_extra = {
             "example": {
                 "message": "Explain what is RAG in AI?",
                 "stream": True,
-                "temperature": 0.7
+                "temperature": 0.7,
+                "enable_thinking": True
             }
         }
 

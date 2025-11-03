@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     
     # Model Settings
     DEFAULT_MODEL: str = "gemini-2.5-flash"
+    QWEN_MODEL: str = "Qwen/Qwen3-0.6B"
+    QWEN_BASE_URL: str = "http://localhost:8000"
+    QWEN_TIMEOUT: int = 120  # seconds
     TEMPERATURE: float = 0.7
     MAX_TOKENS: int = 2048
     

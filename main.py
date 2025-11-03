@@ -10,6 +10,8 @@ import logging
 
 from app.core.config import settings
 from app.api import chat_router, rag_router, health_router
+# Import Qwen router riêng biệt
+from app.api.qwen import router as qwen_router
 
 # Configure logging
 logging.basicConfig(
@@ -51,7 +53,8 @@ app = FastAPI(
     - **Vector Databases**: Semantic search and embeddings
     
     ## Features
-    - ✅ Chat with Gemini AI (standard & streaming)
+    - ✅ Chat with Gemini AI (cloud-based, standard & streaming)
+    - ✅ Chat with Qwen3-0.6B (local model via vLLM, standard & streaming)
     - ✅ RAG query endpoints (with streaming support)
     - ⏳ Document ingestion and processing
     - ⏳ LangChain integration
@@ -60,9 +63,14 @@ app = FastAPI(
     
     ## Getting Started
     1. Check `/health` to verify API status
-    2. Use `/chat` or `/chat/stream` for AI chat
-    3. Use `/rag/query` for knowledge base queries
-    4. Upload documents via `/rag/documents/upload`
+    2. Use `/chat` or `/chat/stream` for Gemini AI chat (cloud)
+    3. Use `/qwen/chat` or `/qwen/chat/stream` for Qwen3 chat (local)
+    4. Use `/rag/query` for knowledge base queries
+    5. Upload documents via `/rag/documents/upload`
+    
+    ## Model Comparison
+    - **Gemini (Cloud)**: Powerful, requires API key, internet connection
+    - **Qwen3 (Local)**: Lightweight, privacy-friendly, runs offline, good for learning
     """,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -96,9 +104,11 @@ async def global_exception_handler(request, exc):
 
 
 # Include routers
-app.include_router(health_router)
-app.include_router(chat_router)
-app.include_router(rag_router)
+# Thứ tự: health -> Gemini chat -> Qwen chat -> RAG
+app.include_router(health_router)  # Root endpoints và health check
+app.include_router(chat_router)    # Gemini AI endpoints (/chat)
+app.include_router(qwen_router)    # Qwen3 local model endpoints (/qwen)
+app.include_router(rag_router)     # RAG endpoints (/rag)
 
 
 if __name__ == "__main__":
