@@ -77,20 +77,26 @@ class GeminiService:
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        system_instruction: Optional[str] = None,
+        thinking_budget: Optional[int] = None,
+        include_thoughts: bool = False,
         conversation_id: Optional[str] = None
     ) -> AsyncIterator[Dict[str, Any]]:
         """
-        Generate a streaming response from Gemini.
+        Generate a streaming response from Gemini with thinking support.
         
         Args:
             message: User message to send
             model: Model to use (defaults to config setting)
             temperature: Temperature for generation
             max_tokens: Maximum tokens in response
+            system_instruction: System instruction for the model
+            thinking_budget: Token budget for thinking (-1 for dynamic, 0 to disable)
+            include_thoughts: Whether to include thought summaries in response
             conversation_id: Conversation ID for context
             
         Yields:
-            Dictionary chunks with text, done status, and conversation_id
+            Dictionary chunks with text/thought, done status, and metadata
         """
         model_name = model or self.default_model
         temp = temperature if temperature is not None else settings.TEMPERATURE
@@ -101,12 +107,25 @@ class GeminiService:
             conversation_id = f"conv_{uuid.uuid4().hex[:12]}"
         
         try:
+            # Configure thinking
+            thinking_config = types.ThinkingConfig(
+                thinking_budget=thinking_budget if thinking_budget is not None else 0,
+                include_thoughts=include_thoughts
+            )
+            
             # Configure generation
             config = types.GenerateContentConfig(
                 temperature=temp,
                 max_output_tokens=max_tok,
-                thinking_config=types.ThinkingConfig(thinking_budget=0)
+                thinking_config=thinking_config
             )
+            
+            # Add system instruction if provided
+            if system_instruction:
+                config.system_instruction = system_instruction
+            
+            thoughts_text = ""
+            answer_text = ""
             
             # Generate streaming response
             for chunk in self.client.models.generate_content_stream(
@@ -114,27 +133,48 @@ class GeminiService:
                 contents=message,
                 config=config
             ):
-                if chunk.text:
-                    yield {
-                        "chunk": chunk.text,
-                        "done": False,
-                        "conversation_id": conversation_id
-                    }
+                # Process each part in the chunk
+                for part in chunk.candidates[0].content.parts:
+                    if not part.text:
+                        continue
+                    
+                    # Check if this is a thought or answer
+                    if part.thought:
+                        thoughts_text += part.text
+                        yield {
+                            "type": "thought",
+                            "chunk": part.text,
+                            "done": False,
+                            "conversation_id": conversation_id
+                        }
+                    else:
+                        answer_text += part.text
+                        yield {
+                            "type": "answer",
+                            "chunk": part.text,
+                            "done": False,
+                            "conversation_id": conversation_id
+                        }
             
-            # Send final done signal
+            # Send final done signal with usage info
+            usage_data = self._extract_usage_from_chunk(chunk) if 'chunk' in locals() else None
             yield {
+                "type": "done",
                 "chunk": "",
                 "done": True,
-                "conversation_id": conversation_id
+                "conversation_id": conversation_id,
+                "usage": usage_data,
+                "has_thoughts": bool(thoughts_text)
             }
             
         except Exception as e:
             # Send error in stream
             yield {
+                "type": "error",
                 "chunk": f"Error: {str(e)}",
                 "done": True,
                 "conversation_id": conversation_id,
-                "error": True
+                "error": str(e)
             }
     
     def _extract_usage(self, response) -> Optional[Dict[str, int]]:
@@ -145,7 +185,23 @@ class GeminiService:
                 return {
                     "prompt_tokens": getattr(usage, 'prompt_token_count', 0),
                     "completion_tokens": getattr(usage, 'candidates_token_count', 0),
-                    "total_tokens": getattr(usage, 'total_token_count', 0)
+                    "total_tokens": getattr(usage, 'total_token_count', 0),
+                    "thoughts_tokens": getattr(usage, 'thoughts_token_count', 0)
+                }
+        except:
+            pass
+        return None
+    
+    def _extract_usage_from_chunk(self, chunk) -> Optional[Dict[str, int]]:
+        """Extract token usage from streaming chunk if available."""
+        try:
+            if hasattr(chunk, 'usage_metadata'):
+                usage = chunk.usage_metadata
+                return {
+                    "prompt_tokens": getattr(usage, 'prompt_token_count', 0),
+                    "completion_tokens": getattr(usage, 'candidates_token_count', 0),
+                    "total_tokens": getattr(usage, 'total_token_count', 0),
+                    "thoughts_tokens": getattr(usage, 'thoughts_token_count', 0)
                 }
         except:
             pass

@@ -12,6 +12,8 @@ from app.core.config import settings
 from app.api import chat_router, rag_router, health_router
 # Import Qwen router riêng biệt
 from app.api.qwen import router as qwen_router
+# Import Documents router for embedding
+from app.api.documents import router as documents_router
 
 # Configure logging
 logging.basicConfig(
@@ -104,11 +106,12 @@ async def global_exception_handler(request, exc):
 
 
 # Include routers
-# Thứ tự: health -> Gemini chat -> Qwen chat -> RAG
-app.include_router(health_router)  # Root endpoints và health check
-app.include_router(chat_router)    # Gemini AI endpoints (/chat)
-app.include_router(qwen_router)    # Qwen3 local model endpoints (/qwen)
-app.include_router(rag_router)     # RAG endpoints (/rag)
+# Thứ tự: health -> Gemini chat -> Qwen chat -> Documents -> RAG
+app.include_router(health_router)     # Root endpoints và health check
+app.include_router(chat_router)       # Gemini AI endpoints (/chat)
+app.include_router(qwen_router)       # Qwen3 local model endpoints (/qwen)
+app.include_router(documents_router)  # Document upload & embedding (/api/documents)
+app.include_router(rag_router)        # RAG endpoints (/rag)
 
 
 if __name__ == "__main__":

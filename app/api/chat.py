@@ -48,16 +48,23 @@ async def chat(request: ChatRequest):
 @router.post("/stream")
 async def chat_stream(request: ChatRequest):
     """
-    Send a message to Gemini AI and get a streaming response.
+    Send a message to Gemini AI and get a streaming response with thinking support.
     
     Returns Server-Sent Events (SSE) with chunks of the response.
-    Each event contains a JSON object with 'chunk', 'done', and 'conversation_id' fields.
+    Each event contains:
+    - type: 'thought' | 'answer' | 'done' | 'error'
+    - chunk: The text content
+    - done: Boolean indicating if streaming is complete
+    - conversation_id: The conversation identifier
     
     - **message**: The message to send to the AI
     - **conversation_id**: Optional conversation ID for context
     - **model**: Optional model override
     - **temperature**: Optional temperature setting (0.0 - 2.0)
     - **max_tokens**: Optional maximum tokens in response
+    - **system_instruction**: Optional system instruction for the model
+    - **thinking_budget**: Token budget for thinking (-1 for dynamic, 0 to disable, or specific number)
+    - **include_thoughts**: Whether to include thought summaries in response
     """
     async def event_generator():
         """Generate Server-Sent Events for streaming."""
@@ -67,10 +74,13 @@ async def chat_stream(request: ChatRequest):
                 model=request.model,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
+                system_instruction=request.system_instruction,
+                thinking_budget=request.thinking_budget,
+                include_thoughts=request.include_thoughts,
                 conversation_id=request.conversation_id
             ):
                 # Format as SSE
-                chunk_json = json.dumps(chunk_data)
+                chunk_json = json.dumps(chunk_data, ensure_ascii=False)
                 yield f"data: {chunk_json}\n\n"
                 
                 # Break if done
@@ -79,6 +89,7 @@ async def chat_stream(request: ChatRequest):
                     
         except Exception as e:
             error_data = {
+                "type": "error",
                 "chunk": "",
                 "done": True,
                 "error": str(e)

@@ -25,13 +25,17 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="Temperature for response generation")
     max_tokens: Optional[int] = Field(None, gt=0, description="Maximum tokens in response")
     stream: bool = Field(False, description="Enable streaming response")
-    system_prompt: Optional[str] = Field(
+    system_instruction: Optional[str] = Field(
         None,
-        description="System instruction cho model (vd: 'You are a Python expert')"
+        description="System instruction for the model (e.g., 'You are a helpful AI assistant')"
     )
-    enable_thinking: Optional[bool] = Field(
+    thinking_budget: Optional[int] = Field(
+        None,
+        description="Token budget for thinking mode: -1 for dynamic, 0 to disable, or specific number (128-32768 for Pro, 0-24576 for Flash)"
+    )
+    include_thoughts: bool = Field(
         False,
-        description="Enable thinking mode - model shows reasoning process in <think> tags (Qwen only)"
+        description="Whether to include thought summaries in the response (only works with thinking_budget enabled)"
     )
     context: Optional[str] = Field(
         None,
@@ -44,7 +48,9 @@ class ChatRequest(BaseModel):
                 "message": "Explain what is RAG in AI?",
                 "stream": True,
                 "temperature": 0.7,
-                "enable_thinking": True
+                "system_instruction": "You are an AI expert who explains concepts clearly",
+                "thinking_budget": -1,
+                "include_thoughts": True
             }
         }
 
